@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Entity\Author;
 use App\Entity\Book;
 use App\Repository\AuthorRepository;
 use App\Repository\BookRepository;
@@ -13,6 +14,7 @@ use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 
 final class BookController extends AbstractController
 {
@@ -58,14 +60,48 @@ final class BookController extends AbstractController
 
         // Récupération de l'ensemble des données envoyées sous forme de tableau
         $content = $request->toArray();
+        $idAuthor = $content['idAuthor'] ?? -1;
 
+        // On cherche l'auteur qui correspond et on l'assigne au livre.
+        // Si "find" ne trouve pas l'auteur, alors null sera retourné.
+
+        $author = $authorRepository->find($idAuthor);
+        $book->setAuthor($author);
+
+        // envoi des données en base de données
         $em->persist($book);
         $em->flush();
 
-        $jsonBook = $serializer->serialize($book, 'json');
+        $jsonBook = $serializer->serialize($book, 'json', ['groups' => 'getBooks']);
 
         $location = $urlGenerator->generate('detailBook', ['id' => $book->getId()], UrlGeneratorInterface::ABSOLUTE_URL);
 
         return new JsonResponse($jsonBook, Response::HTTP_CREATED, ["location" => $location], true);
+    }
+
+    #[Route('/api/books/{id}', name: 'updateBook', methods: ['PUT'])]
+
+    public function updateBook(
+        Request $request,
+        EntityManagerInterface $em,
+        AuthorRepository $authorRepository,
+        Book $book,
+        SerializerInterface $serializer
+    ): JsonResponse {
+        $updatedBook = $serializer->deserialize($request->getContent(), Book::class, 'json', [AbstractNormalizer::OBJECT_TO_POPULATE => $book]);
+
+        // Récupération de l'ensemble des données envoyées sous forme de tableau
+        $content = $request->toArray();
+        // On récupère l'id de l'auteur
+        $idAuthor = $content['idAuthor'] ?? -1;
+        // On cherche l'auteur qui correspond et on l'assigne au livre.
+        // Si "find" ne trouve pas l'auteur, alors null sera retourné.
+        $updatedBook->setAuthor($authorRepository->find($idAuthor));
+
+        // envoi des données en base de données
+        $em->persist($updatedBook);
+        $em->flush();
+
+        return new JsonResponse(null, JsonResponse::HTTP_NO_CONTENT);
     }
 }
