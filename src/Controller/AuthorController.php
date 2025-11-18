@@ -44,16 +44,33 @@ final class AuthorController extends AbstractController
         $em->persist($author);
         $em->flush();
 
-        $jsonAuthor = $serializer->serialize($author, 'json');
+        $jsonAuthor = $serializer->serialize($author, 'json', ['groups' => 'getBooks']);
         $location = $urlGenerator->generate('detailAuthor', ['id' => $author->getId()], UrlGeneratorInterface::ABSOLUTE_URL);
 
         return new JsonResponse($jsonAuthor, Response::HTTP_CREATED, ['Location' => $location], true);
     }
 
-    #[Route('api/authors/{id}', name: 'getAuthor', methods: ['DELETE'])]
+    #[Route('api/authors/{id}', name: 'detailAuthor', methods: ['DELETE'])]
     public function deleteAuthor(Author $author, EntityManagerInterface $em): JsonResponse
     {
+
         $em->remove($author);
+        $em->flush();
+
+        return new JsonResponse(null, Response::HTTP_NO_CONTENT);
+    }
+
+    #[Route('api/authors/{id}', name: 'updateAuthor', methods: ['PUT'])]
+    public function updateAuthor(
+        Request $request,
+        Author $author,
+        SerializerInterface $serializer,
+        EntityManagerInterface $em
+    ): JsonResponse {
+        // Récupération de l'ensemble des données envoyées sous forme de tableau 
+        $serializer->deserialize($request->getContent(), Author::class, 'json', ['object_to_populate' => $author]);
+        // envoi des données en base de données
+        $em->persist($author);
         $em->flush();
 
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);
