@@ -12,6 +12,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 final class AuthorController extends AbstractController
 {
@@ -37,10 +38,16 @@ final class AuthorController extends AbstractController
         Request $request,
         SerializerInterface $serializer,
         UrlGeneratorInterface $urlGenerator,
-        EntityManagerInterface $em
+        EntityManagerInterface $em,
+        ValidatorInterface $validator
     ): JsonResponse {
         $author = $serializer->deserialize($request->getContent(), Author::class, 'json');
 
+        // Verification des erreurs.        
+        $errors = $validator->validate($author);
+        if ($errors->count() > 0) {
+            return new JsonResponse($serializer->serialize($errors, 'json'), JsonResponse::HTTP_BAD_REQUEST, [], true);
+        }
         $em->persist($author);
         $em->flush();
 
@@ -65,11 +72,17 @@ final class AuthorController extends AbstractController
         Request $request,
         Author $author,
         SerializerInterface $serializer,
-        EntityManagerInterface $em
+        EntityManagerInterface $em,
+        ValidatorInterface $validator
+
     ): JsonResponse {
         // Récupération de l'ensemble des données envoyées sous forme de tableau 
         $serializer->deserialize($request->getContent(), Author::class, 'json', ['object_to_populate' => $author]);
-        // envoi des données en base de données
+        // envoi des données en base de données après validation
+        $errors = $validator->validate($author);
+        if ($errors->count() > 0) {
+            return new JsonResponse($serializer->serialize($errors, 'json'), JsonResponse::HTTP_BAD_REQUEST, [], true);
+        }
         $em->persist($author);
         $em->flush();
 

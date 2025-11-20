@@ -2,19 +2,23 @@
 
 namespace App\Controller;
 
-use App\Entity\Author;
+use Exception;
 use App\Entity\Book;
-use App\Repository\AuthorRepository;
+use App\Entity\Author;
 use App\Repository\BookRepository;
+use App\Repository\AuthorRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\Validator\Constraints\Valid;
 use Symfony\Component\Serializer\SerializerInterface;
-use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpKernel\Exception\HttpException;
+use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 
 final class BookController extends AbstractController
 {
@@ -54,7 +58,8 @@ final class BookController extends AbstractController
         SerializerInterface $serializer,
         EntityManagerInterface $em,
         UrlGeneratorInterface $urlGenerator,
-        AuthorRepository $authorRepository
+        AuthorRepository $authorRepository,
+        ValidatorInterface $validator
     ): JsonResponse {
         $book = $serializer->deserialize($request->getContent(), Book::class, 'json');
 
@@ -67,6 +72,11 @@ final class BookController extends AbstractController
 
         $author = $authorRepository->find($idAuthor);
         $book->setAuthor($author);
+        // Verification des erreurs.
+        $errors = $validator->validate($book);
+        if ($errors->count() > 0) {
+            return new JsonResponse($serializer->serialize($errors, 'json'), JsonResponse::HTTP_BAD_REQUEST, [], true);
+        }
 
         // envoi des données en base de données
         $em->persist($book);

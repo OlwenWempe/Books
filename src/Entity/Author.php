@@ -7,6 +7,8 @@ use App\Repository\AuthorRepository;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\Common\Collections\ArrayCollection;
 use Symfony\Component\Serializer\Annotation\Groups;
+use Symfony\Component\Validator\Constraints as Assert;
+use Symfony\Component\Validator\Constraints\NotBlank;
 
 #[ORM\Entity(repositoryClass: AuthorRepository::class)]
 class Author
@@ -14,15 +16,29 @@ class Author
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
-    #[Groups(["getBooks"])]
+    #[Groups(["getBooks", "getAuthors"])]
     private ?int $id = null;
 
     #[ORM\Column(length: 255)]
-    #[Groups(["getBooks"])]
+    #[Groups(["getBooks", "getAuthors"])]
+    #[NotBlank(message: "The first name cannot be blank.")]
+    #[Assert\Length(
+        min: 1,
+        max: 255,
+        minMessage: "The title must be at least {{ limit }} characters long.",
+        maxMessage: "The title cannot be longer than {{ limit }} characters."
+    )]
     private ?string $firstName = null;
 
     #[ORM\Column(length: 255)]
-    #[Groups(["getBooks"])]
+    #[Groups(["getBooks", "getAuthors"])]
+    #[NotBlank(message: "The last name cannot be blank.")]
+    #[Assert\Length(
+        min: 1,
+        max: 255,
+        minMessage: "The title must be at least {{ limit }} characters long.",
+        maxMessage: "The title cannot be longer than {{ limit }} characters."
+    )]
     private ?string $lastName = null;
 
     /**
