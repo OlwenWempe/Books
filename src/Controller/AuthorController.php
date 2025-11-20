@@ -10,12 +10,20 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Serializer\SerializerInterface;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 final class AuthorController extends AbstractController
 {
+    /**
+     * This method retrieves all authors.
+     *
+     * @param AuthorRepository $authorRepository The author repository interface
+     * @param SerializerInterface $serializer The serializer interface
+     * @return JsonResponse A JSON response containing the list of authors
+     */
     #[Route('api/authors', name: 'authors', methods: ['GET'])]
     public function getAllAuthor(AuthorRepository $authorRepository, SerializerInterface $serializer): JsonResponse
     {
@@ -25,6 +33,13 @@ final class AuthorController extends AbstractController
         return new JsonResponse($jsonAuthorList, Response::HTTP_OK, [], true);
     }
 
+    /**
+     * This method retrieves an author by his/her ID.
+     *
+     * @param Author $author The author entity
+     * @param SerializerInterface $serializer The serializer interface
+     * @return JsonResponse A JSON response containing the author data
+     */
     #[Route('api/authors/{id}', name: 'getAuthor', methods: ['GET'])]
     public function getAuthor(Author $author, SerializerInterface $serializer): JsonResponse
     {
@@ -33,7 +48,18 @@ final class AuthorController extends AbstractController
         return new JsonResponse($jsonAuthor, Response::HTTP_OK, ['accept' => 'json'], true);
     }
 
+    /**
+     * This method creates a new author. Only users with the ROLE_ADMIN role can access this resource.
+     *
+     * @param Request $request The HTTP request object
+     * @param SerializerInterface $serializer The serializer interface
+     * @param UrlGeneratorInterface $urlGenerator The URL generator interface
+     * @param EntityManagerInterface $em The entity manager interface
+     * @param ValidatorInterface $validator The validator interface
+     * @return JsonResponse A JSON response containing the created author data
+     */
     #[Route('api/authors', name: 'createAuthor', methods: ['POST'])]
+    #[IsGranted('ROLE_ADMIN', message: "You don't have access to this resource.")]
     public function createAuthor(
         Request $request,
         SerializerInterface $serializer,
@@ -57,7 +83,14 @@ final class AuthorController extends AbstractController
         return new JsonResponse($jsonAuthor, Response::HTTP_CREATED, ['Location' => $location], true);
     }
 
-    #[Route('api/authors/{id}', name: 'detailAuthor', methods: ['DELETE'])]
+    /**
+     * This method deletes an author by his/her ID.
+     *
+     * @param Author $author The author entity
+     * @param EntityManagerInterface $em The entity manager interface
+     * @return JsonResponse A JSON response with no content
+     */
+    #[Route('api/authors/{id}', name: 'deleteAuthor', methods: ['DELETE'])]
     public function deleteAuthor(Author $author, EntityManagerInterface $em): JsonResponse
     {
 
@@ -67,6 +100,16 @@ final class AuthorController extends AbstractController
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);
     }
 
+    /**
+     * This method updates an existing author. Only users with the ROLE_ADMIN role can access this resource.
+     *
+     * @param Request $request The HTTP request object
+     * @param Author $author The author entity to be updated
+     * @param SerializerInterface $serializer The serializer interface
+     * @param EntityManagerInterface $em The entity manager interface
+     * @param ValidatorInterface $validator The validator interface
+     * @return JsonResponse A JSON response with no content
+     */
     #[Route('api/authors/{id}', name: 'updateAuthor', methods: ['PUT'])]
     public function updateAuthor(
         Request $request,
