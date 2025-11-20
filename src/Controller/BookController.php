@@ -90,12 +90,13 @@ final class BookController extends AbstractController
     /**
      * This method creates a new book. Only users with the ROLE_ADMIN role can access this endpoint.
      *
-     * @param Request $request
-     * @param SerializerInterface $serializer
-     * @param EntityManagerInterface $em
-     * @param UrlGeneratorInterface $urlGenerator
-     * @param AuthorRepository $authorRepository
-     * @param ValidatorInterface $validator
+     * @param Request $request The HTTP request object
+     * @param SerializerInterface $serializer The serializer interface
+     * @param EntityManagerInterface $em The entity manager interface
+     * @param UrlGeneratorInterface $urlGenerator The URL generator interface
+     * @param AuthorRepository $authorRepository The author repository interface
+     * @param ValidatorInterface $validator The validator interface
+     * @param TagAwareCacheInterface $cache The cache interface
      * @return JsonResponse
      */
     #[Route('api/books', name: "createBook", methods: ['POST'])]
@@ -106,7 +107,8 @@ final class BookController extends AbstractController
         EntityManagerInterface $em,
         UrlGeneratorInterface $urlGenerator,
         AuthorRepository $authorRepository,
-        ValidatorInterface $validator
+        ValidatorInterface $validator,
+        TagAwareCacheInterface $cache
     ): JsonResponse {
         $book = $serializer->deserialize($request->getContent(), Book::class, 'json');
 
@@ -124,6 +126,8 @@ final class BookController extends AbstractController
         if ($errors->count() > 0) {
             return new JsonResponse($serializer->serialize($errors, 'json'), JsonResponse::HTTP_BAD_REQUEST, [], true);
         }
+        // Deleting data in cache
+        $cache->invalidateTags(["booksCache"]);
 
         // Sending data to the database
         $em->persist($book);
@@ -139,11 +143,12 @@ final class BookController extends AbstractController
     /**
      * This method updates an existing book. Only users with the ROLE_ADMIN role can access this endpoint.
      *
-     * @param Request $request
-     * @param EntityManagerInterface $em
-     * @param AuthorRepository $authorRepository
-     * @param Book $book
-     * @param SerializerInterface $serializer
+     * @param Request $request The HTTP request object
+     * @param EntityManagerInterface $em The entity manager interface
+     * @param AuthorRepository $authorRepository The author repository interface
+     * @param Book $book The book entity to be updated
+     * @param SerializerInterface $serializer The serializer interface
+     * @param TagAwareCacheInterface $cache The cache interface
      * @return JsonResponse
      */
     #[Route('/api/books/{id}', name: 'updateBook', methods: ['PUT'])]
@@ -153,7 +158,8 @@ final class BookController extends AbstractController
         EntityManagerInterface $em,
         AuthorRepository $authorRepository,
         Book $book,
-        SerializerInterface $serializer
+        SerializerInterface $serializer,
+        TagAwareCacheInterface $cache
     ): JsonResponse {
         $updatedBook = $serializer->deserialize($request->getContent(), Book::class, 'json', [AbstractNormalizer::OBJECT_TO_POPULATE => $book]);
 
@@ -164,6 +170,9 @@ final class BookController extends AbstractController
         // We look for the corresponding author and assign it to the book.
         // If "find" does not find the author, then null will be returned.
         $updatedBook->setAuthor($authorRepository->find($idAuthor));
+
+        // Deleting data in cache
+        $cache->invalidateTags(["booksCache"]);
 
         // Sending data to the database
         $em->persist($updatedBook);
