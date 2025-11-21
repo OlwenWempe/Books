@@ -5,10 +5,13 @@ namespace App\Controller;
 use App\Entity\Author;
 use App\Repository\AuthorRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use phpDocumentor\Reflection\DocBlock\Tag;
+use Symfony\Contracts\Cache\ItemInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Contracts\Cache\TagAwareCacheInterface;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
@@ -18,17 +21,33 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 final class AuthorController extends AbstractController
 {
     /**
-     * This method retrieves all authors.
+     * This method retrieves all authors with pagination.
      *
      * @param AuthorRepository $authorRepository The author repository interface
      * @param SerializerInterface $serializer The serializer interface
      * @return JsonResponse A JSON response containing the list of authors
+     * @param Request $request The HTTP request object
+     * @param TagAwareCacheInterface $cache The cache interface
      */
     #[Route('api/authors', name: 'authors', methods: ['GET'])]
-    public function getAllAuthor(AuthorRepository $authorRepository, SerializerInterface $serializer): JsonResponse
-    {
-        $authorList = $authorRepository->findAll();
-        $jsonAuthorList = $serializer->serialize($authorList, 'json', ['groups' => 'getBooks']);
+    public function getAllAuthor(
+        AuthorRepository $authorRepository,
+        SerializerInterface $serializer,
+        Request $request,
+        TagAwareCacheInterface $cache
+    ): JsonResponse {
+        $page = $request->get('page', 1);
+        $limit = $request->get('limit', 10);
+
+        $idCache = "getAllAuthors-" . $page . "-" . $limit;
+
+        $jsonAuthorList = $cache->get($idCache, function (ItemInterface $item) use ($authorRepository, $page, $limit, $serializer) {
+            echo ("Fetching data from database...\n");
+            $item->tag("authorsCache");
+            $authorList = $authorRepository->findAllWithPagination($page, $limit);
+
+            return $serializer->serialize($authorList, 'json', ['groups' => 'getBooks']);
+        });
 
         return new JsonResponse($jsonAuthorList, Response::HTTP_OK, [], true);
     }
@@ -56,6 +75,7 @@ final class AuthorController extends AbstractController
      * @param UrlGeneratorInterface $urlGenerator The URL generator interface
      * @param EntityManagerInterface $em The entity manager interface
      * @param ValidatorInterface $validator The validator interface
+     * @param TagAwareCacheInterface $cache The cache interface
      * @return JsonResponse A JSON response containing the created author data
      */
     #[Route('api/authors', name: 'createAuthor', methods: ['POST'])]
@@ -65,7 +85,8 @@ final class AuthorController extends AbstractController
         SerializerInterface $serializer,
         UrlGeneratorInterface $urlGenerator,
         EntityManagerInterface $em,
-        ValidatorInterface $validator
+        ValidatorInterface $validator,
+        TagAwareCacheInterface $cache
     ): JsonResponse {
         $author = $serializer->deserialize($request->getContent(), Author::class, 'json');
 
@@ -74,6 +95,10 @@ final class AuthorController extends AbstractController
         if ($errors->count() > 0) {
             return new JsonResponse($serializer->serialize($errors, 'json'), JsonResponse::HTTP_BAD_REQUEST, [], true);
         }
+        // Invalidate cache
+        $cache->invalidateTags(["authorsCache"]);
+
+        // Save data in database
         $em->persist($author);
         $em->flush();
 
@@ -88,11 +113,15 @@ final class AuthorController extends AbstractController
      *
      * @param Author $author The author entity
      * @param EntityManagerInterface $em The entity manager interface
+     * @param TagAwareCacheInterface $cache The cache interface
      * @return JsonResponse A JSON response with no content
      */
     #[Route('api/authors/{id}', name: 'deleteAuthor', methods: ['DELETE'])]
-    public function deleteAuthor(Author $author, EntityManagerInterface $em): JsonResponse
+    #[IsGranted('ROLE_ADMIN', message: "You don't have access to this resource.")]
+    public function deleteAuthor(Author $author, EntityManagerInterface $em, TagAwareCacheInterface $cache): JsonResponse
     {
+        // Invalidate cache
+        $cache->invalidateTags(["authorsCache"]);
 
         $em->remove($author);
         $em->flush();
@@ -108,25 +137,31 @@ final class AuthorController extends AbstractController
      * @param SerializerInterface $serializer The serializer interface
      * @param EntityManagerInterface $em The entity manager interface
      * @param ValidatorInterface $validator The validator interface
+     * @param TagAwareCacheInterface $cache The cache interface
      * @return JsonResponse A JSON response with no content
      */
     #[Route('api/authors/{id}', name: 'updateAuthor', methods: ['PUT'])]
+    #[IsGranted('ROLE_ADMIN', message: "You don't have access to this resource.")]
     public function updateAuthor(
         Request $request,
         Author $author,
         SerializerInterface $serializer,
         EntityManagerInterface $em,
-        ValidatorInterface $validator
-
+        ValidatorInterface $validator,
+        TagAwareCacheInterface $cache
     ): JsonResponse {
-        // Récupération de l'ensemble des données envoyées sous forme de tableau 
-        $serializer->deserialize($request->getContent(), Author::class, 'json', ['object_to_populate' => $author]);
-        // envoi des données en base de données après validation
-        $errors = $validator->validate($author);
+        // Retrieves all data sent as an array
+        $updatedAuthor = $serializer->deserialize($request->getContent(), Author::class, 'json', ['object_to_populate' => $author]);
+        // Sends data to the database after validation
+        $errors = $validator->validate($updatedAuthor);
         if ($errors->count() > 0) {
             return new JsonResponse($serializer->serialize($errors, 'json'), JsonResponse::HTTP_BAD_REQUEST, [], true);
         }
-        $em->persist($author);
+        // Invalidate cache
+        $cache->invalidateTags(["authorsCache"]);
+
+        // Sending data to the database
+        $em->persist($updatedAuthor);
         $em->flush();
 
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);

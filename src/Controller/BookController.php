@@ -24,10 +24,10 @@ final class BookController extends AbstractController
     /**
      * This method retrieves a paginated list of books. It adds caching to optimize performance.
      *
-     * @param BookRepository $bookRepository
-     * @param SerializerInterface $serializer
-     * @param Request $request
-     * @param TagAwareCacheInterface $cache
+     * @param BookRepository $bookRepository The book repository interface
+     * @param SerializerInterface $serializer The serializer interface
+     * @param Request $request The HTTP request object
+     * @param TagAwareCacheInterface $cache The cache interface
      * @return JsonResponse
      */
     #[Route('/api/books', name: 'book', methods: ['GET'])]
@@ -38,7 +38,7 @@ final class BookController extends AbstractController
         TagAwareCacheInterface $cache
     ): JsonResponse {
         $page = $request->get('page', 1);
-        $limit = $request->get('limit', 3);
+        $limit = $request->get('limit', 6);
 
         $idCache = "getAllbooks-" . $page . "-" . $limit;
 
@@ -144,10 +144,10 @@ final class BookController extends AbstractController
      * This method updates an existing book. Only users with the ROLE_ADMIN role can access this endpoint.
      *
      * @param Request $request The HTTP request object
-     * @param EntityManagerInterface $em The entity manager interface
-     * @param AuthorRepository $authorRepository The author repository interface
      * @param Book $book The book entity to be updated
      * @param SerializerInterface $serializer The serializer interface
+     * @param EntityManagerInterface $em The entity manager interface
+     * @param AuthorRepository $authorRepository The author repository interface
      * @param TagAwareCacheInterface $cache The cache interface
      * @return JsonResponse
      */
@@ -155,14 +155,19 @@ final class BookController extends AbstractController
     #[IsGranted('ROLE_ADMIN', message: "You don't have access to this resource.")]
     public function updateBook(
         Request $request,
-        EntityManagerInterface $em,
-        AuthorRepository $authorRepository,
         Book $book,
         SerializerInterface $serializer,
+        EntityManagerInterface $em,
+        AuthorRepository $authorRepository,
+        ValidatorInterface $validator,
         TagAwareCacheInterface $cache
     ): JsonResponse {
         $updatedBook = $serializer->deserialize($request->getContent(), Book::class, 'json', [AbstractNormalizer::OBJECT_TO_POPULATE => $book]);
 
+        $errors = $validator->validate($updatedBook);
+        if ($errors->count() > 0) {
+            return new JsonResponse($serializer->serialize($errors, 'json'), JsonResponse::HTTP_BAD_REQUEST, [], true);
+        }
         // Retrieves all data sent as an array
         $content = $request->toArray();
         // We retrieve the author's id
